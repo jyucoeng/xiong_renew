@@ -54,13 +54,13 @@ Open it to view and obtain your chat_id.
 
 ---
 
-GitHub Actions GITHUB_TOKEN (Auto-generated)
-Do I need to create GITHUB_TOKEN manually?
+## GitHub Actions GITHUB_TOKEN (Auto-generated)
+### Do I need to create GITHUB_TOKEN manually?
 
-No. You do not create GITHUB_TOKEN yourself.
-GitHub automatically provides a short-lived token for every workflow run at:
+### No. You do not create GITHUB_TOKEN yourself.
+### GitHub automatically provides a short-lived token for every workflow run at:
 
-${{ secrets.GITHUB_TOKEN }}
+ ${{ secrets.GITHUB_TOKEN }}
 
 You can use it directly in your workflow (as shown below):
 
@@ -68,9 +68,9 @@ env:
   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
 
-Note: You won’t see GITHUB_TOKEN in the repository “Secrets” list because it is automatically injected by GitHub at runtime.
+### Note: You won’t see GITHUB_TOKEN in the repository “Secrets” list because it is automatically injected by GitHub at runtime.
 
-Required permissions for pushing commits
+### Required permissions for pushing commits
 
 If your workflow needs to git push changes back to the repository, you must grant write access:
 
@@ -80,12 +80,12 @@ permissions:
   contents: write
 
 
-In the repository settings, enable workflow write permissions:
+### In the repository settings, enable workflow write permissions:
 
-Repo → Settings → Actions → General → Workflow permissions
-Select:
+### Repo → Settings → Actions → General → Workflow permissions
+### Select:
 
-Read and write permissions
+#### Read and write permissions
 
 If it is set to read-only, git push will fail.
 
@@ -101,6 +101,39 @@ Rules like the following can block direct pushes from Actions:
 “Require a pull request before merging”
 
 “Restrict who can push to matching branches”
+
+
+----
+GITHUB_TOKEN 不用你手动创建 —— 只要你的 workflow 在 GitHub Actions 里跑起来，GitHub 会自动为每次运行生成一个临时的 secrets.GITHUB_TOKEN，在 workflow 里直接用就行（你已经在用 ${{ secrets.GITHUB_TOKEN }} 了）。
+
+你需要做的通常是 给它权限、以及确认 checkout 会把它用在 push 上。
+
+1) 你不需要创建：它默认就存在
+
+在 workflow 里这样写就能用：
+
+env:
+  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+
+这个 secrets.GITHUB_TOKEN 是 GitHub 自动注入的，不会出现在 “Secrets” 列表里让你手动建。
+
+2) 你需要设置的地方：给它写权限
+
+到仓库：
+
+Settings → Actions → General → Workflow permissions
+
+选择：
+
+✅ Read and write permissions
+
+（如果是 “Read repository contents permission” 只读，那 git push 会失败。）
+
+你 workflow 里这段也要保留（你已经写对了）：
+
+permissions:
+  contents: write
 
 
 ## 💡 Acknowledgements
