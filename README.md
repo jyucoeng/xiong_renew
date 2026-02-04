@@ -54,6 +54,55 @@ Open it to view and obtain your chat_id.
 
 ---
 
+GitHub Actions GITHUB_TOKEN (Auto-generated)
+Do I need to create GITHUB_TOKEN manually?
+
+No. You do not create GITHUB_TOKEN yourself.
+GitHub automatically provides a short-lived token for every workflow run at:
+
+${{ secrets.GITHUB_TOKEN }}
+
+You can use it directly in your workflow (as shown below):
+
+env:
+  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+
+Note: You won’t see GITHUB_TOKEN in the repository “Secrets” list because it is automatically injected by GitHub at runtime.
+
+Required permissions for pushing commits
+
+If your workflow needs to git push changes back to the repository, you must grant write access:
+
+In your workflow YAML, keep:
+
+permissions:
+  contents: write
+
+
+In the repository settings, enable workflow write permissions:
+
+Repo → Settings → Actions → General → Workflow permissions
+Select:
+
+Read and write permissions
+
+If it is set to read-only, git push will fail.
+
+Branch protection can block pushes
+
+Even with correct token permissions, a push may still fail if the target branch is protected (e.g., main requires PRs).
+
+Check:
+Repo → Settings → Branches → Branch protection rules
+
+Rules like the following can block direct pushes from Actions:
+
+“Require a pull request before merging”
+
+“Restrict who can push to matching branches”
+
+
 ## 💡 Acknowledgements
 
 - Thanks to the author of the curl_cffi library, which is used in the project to simulate real browser requests.
