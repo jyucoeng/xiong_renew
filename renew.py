@@ -293,54 +293,52 @@ def _is_valid_date_format(date_str):
     return False
 
 def renew_product(session, product):
-    """对单个产品进行续期操作"""
+    """对单个产品进行续期操作，每个阶段独立容错，单产品失败不影响其他产品"""
     import time
-    
+
+    product_id = product.get('id', 'unknown')
+    actual_product_name = product.get('name', f'VPS_{product_id}')
+    old_expiry = product.get('expiry_date')
+
+    print(f"🔄 开始续期操作: {actual_product_name} (ID: {product_id})")
+
+    # ── 阶段1: 获取管理页面，读取续期前的到期时间 ──────────────────────────
     try:
-        product_id = product['id']
         manage_url = product.get('manage_url', f"{BASE_URL}/control/detail/{product_id}/")
-        
-        print(f"🔄 开始续期操作: 产品 ID {product_id}")
-        
-        try:
-            response = session.get(manage_url, proxies=proxy_config, timeout=60, verify=False)
-            if response.status_code == 200:
-                html_content = response.text
-                
-                # 直接使用从产品列表页面获取的产品名称，不再从管理页面重新获取
-                actual_product_name = product.get('name', f'VPS_{product_id}')
-                old_expiry = _extract_expiry_from_manage_page(html_content)
-                
-                # 不再更新产品名称，只保留到期时间
-                product['expiry_date'] = old_expiry
-                
-            else:
-                actual_product_name = product.get('name', f'VPS_{product_id}')
-                old_expiry = product.get('expiry_date')
-                
-        except Exception as e:
-            actual_product_name = product.get('name', f'VPS_{product_id}')
-            old_expiry = product.get('expiry_date')
-        
-        pay_url = f"{BASE_URL}/control/detail/{product_id}/pay/"
-        
-        renew_response = session.post(pay_url, timeout=120, proxies=proxy_config, verify=False)
-        
-        if renew_response.status_code == 200 and "免费产品已经帮您续期到当前时间的最大续期时间" in renew_response.text:
-            print(f"✅ {actual_product_name} 续期操作成功")
-            
-            new_expiry = _get_updated_expiry_from_manage_page(session, product_id, old_expiry)
-            
-            return {'success': True, 'expiry_date': new_expiry}
-            
+        response = session.get(manage_url, proxies=proxy_config, timeout=60, verify=False)
+        if response.status_code == 200:
+            old_expiry = _extract_expiry_from_manage_page(response.text)
+            product['expiry_date'] = old_expiry
+            print(f"   📅 当前到期时间: {old_expiry or '未知'}")
         else:
-            print(f"❌ {actual_product_name} 续期操作失败: 状态码 {renew_response.status_code}")
-            return {'success': False, 'expiry_date': old_expiry}
-            
+            print(f"   ⚠️ 获取管理页面失败 (HTTP {response.status_code})，将继续尝试续期")
     except Exception as e:
-        actual_product_name = product.get('name', f'VPS_{product.get("id", "unknown")}')
-        print(f"❌ {actual_product_name} 续期请求异常: {e}")
-        return {'success': False, 'expiry_date': product.get('expiry_date')}
+        print(f"   ⚠️ 获取管理页面异常: {e}，将继续尝试续期")
+
+    # ── 阶段2: 发起续期请求 ────────────────────────────────────────────────
+    try:
+        pay_url = f"{BASE_URL}/control/detail/{product_id}/pay/"
+        renew_response = session.post(pay_url, timeout=120, proxies=proxy_config, verify=False)
+
+        if renew_response.status_code == 200 and "免费产品已经帮您续期到当前时间的最大续期时间" in renew_response.text:
+            print(f"   ✅ {actual_product_name} 续期请求成功")
+        else:
+            print(f"   ❌ {actual_product_name} 续期请求失败: HTTP {renew_response.status_code}")
+            print(f"      响应片段: {renew_response.text[:200]}")
+            return {'success': False, 'expiry_date': old_expiry}
+
+    except Exception as e:
+        print(f"   ❌ {actual_product_name} 续期请求异常: {e}")
+        return {'success': False, 'expiry_date': old_expiry}
+
+    # ── 阶段3: 获取续期后的新到期时间 ─────────────────────────────────────
+    try:
+        new_expiry = _get_updated_expiry_from_manage_page(session, product_id, old_expiry)
+        print(f"   📅 续期后到期时间: {new_expiry or '未知'}")
+        return {'success': True, 'expiry_date': new_expiry}
+    except Exception as e:
+        print(f"   ⚠️ {actual_product_name} 获取新到期时间异常: {e}，续期仍视为成功")
+        return {'success': True, 'expiry_date': old_expiry}
 
 
 def _get_updated_expiry_from_manage_page(session, product_id, old_expiry):
@@ -348,6 +346,7 @@ def _get_updated_expiry_from_manage_page(session, product_id, old_expiry):
     time.sleep(3)
     
     max_retries = 5
+    # 每次重试前的等待秒数，用于轮询等待服务器更新到期时间。
     retry_delays = [2, 3, 5, 8, 10]
     
     for attempt in range(max_retries):
