@@ -5,7 +5,11 @@ ArcticCloud VPS 自动续期脚本
 import os
 import re
 import time
+import urllib3
 from curl_cffi import requests
+
+# 禁用 SSL 证书验证警告（服务器证书已过期）
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 # SOCKS5 代理配置
 socks5_proxy_url = os.environ.get("SOCKS5_PROXY", "")
@@ -67,7 +71,8 @@ def send_telegram_notification(token, chat_id, message):
             api_url, 
             json=notification_data, 
             timeout=30, 
-            proxies=proxy_config
+            proxies=proxy_config,
+            verify=False
         )
         
         if response.status_code == 200:
@@ -93,7 +98,7 @@ def login_to_arcticcloud(login_url, username, password):
     session = requests.Session(impersonate="chrome110")
     
     try:
-        session.get(login_url, proxies=proxy_config, timeout=30)
+        session.get(login_url, proxies=proxy_config, timeout=30, verify=False)
         
     except Exception as error:
         print(f"❌ 登录页访问失败: {error}")
@@ -121,7 +126,8 @@ def login_to_arcticcloud(login_url, username, password):
             data=login_data, 
             headers=request_headers, 
             proxies=proxy_config, 
-            timeout=60
+            timeout=60,
+            verify=False
         )
         
         if response.status_code == 200:
@@ -146,7 +152,7 @@ def get_product_list_from_page(session):
     print(f"📋 获取产品列表: {PRODUCT_LIST_URL}")
     
     try:
-        response = session.get(PRODUCT_LIST_URL, proxies=proxy_config, timeout=60)
+        response = session.get(PRODUCT_LIST_URL, proxies=proxy_config, timeout=60, verify=False)
         
         if response.status_code != 200:
             print(f"❌ 获取产品列表失败: HTTP {response.status_code}")
@@ -297,7 +303,7 @@ def renew_product(session, product):
         print(f"🔄 开始续期操作: 产品 ID {product_id}")
         
         try:
-            response = session.get(manage_url, proxies=proxy_config, timeout=60)
+            response = session.get(manage_url, proxies=proxy_config, timeout=60, verify=False)
             if response.status_code == 200:
                 html_content = response.text
                 
@@ -318,7 +324,7 @@ def renew_product(session, product):
         
         pay_url = f"{BASE_URL}/control/detail/{product_id}/pay/"
         
-        renew_response = session.post(pay_url, timeout=120, proxies=proxy_config)
+        renew_response = session.post(pay_url, timeout=120, proxies=proxy_config, verify=False)
         
         if renew_response.status_code == 200 and "免费产品已经帮您续期到当前时间的最大续期时间" in renew_response.text:
             print(f"✅ {actual_product_name} 续期操作成功")
@@ -352,6 +358,7 @@ def _get_updated_expiry_from_manage_page(session, product_id, old_expiry):
                 manage_url, 
                 proxies=proxy_config, 
                 timeout=60,
+                verify=False,
                 headers={
                     'Cache-Control': 'no-cache, no-store, must-revalidate',
                     'Pragma': 'no-cache',
