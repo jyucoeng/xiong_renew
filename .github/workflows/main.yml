@@ -7,6 +7,10 @@ on:
   push:
     branches:
       - main  # 或其他你希望触发的分支（加上这个玩意就会邮件提醒你脚本执行了）
+
+permissions:
+  actions: write   # 允许删除 workflow runs
+  contents: write  # 允许提交 time.txt
 jobs:
   send_message:
     runs-on: ubuntu-latest
@@ -56,3 +60,20 @@ jobs:
             git commit -m "⏱️ 更新时间文件: $(date +'%Y-%m-%d %H:%M:%S')"
             git push origin HEAD:main
           fi
+
+      # 🧹 只保留最近 15 次的 workflow 执行记录
+      - name: Delete old workflow runs
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          REPO="${{ github.repository }}"
+          WORKFLOW_ID="${{ github.workflow }}"
+
+          # 获取第 16 条及之后的记录 ID，跳过最新的 15 条
+          gh run list --workflow "$WORKFLOW_ID" --repo "$REPO" --limit 100 --json databaseId \
+            --jq '.[15:] | .[].databaseId' \
+          | while read run_id; do
+              echo "🗑️ 删除旧记录: run_id=$run_id"
+              gh run delete "$run_id" --repo "$REPO"
+            done
+          echo "✅ 清理完成，已保留最近 15 次的执行记录"
